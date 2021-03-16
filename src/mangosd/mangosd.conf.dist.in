@@ -68,9 +68,11 @@ LogsDir = ""
 LoginDatabaseInfo     = "127.0.0.1;3306;mangos;mangos;classicrealmd"
 WorldDatabaseInfo     = "127.0.0.1;3306;mangos;mangos;classicmangos"
 CharacterDatabaseInfo = "127.0.0.1;3306;mangos;mangos;classiccharacters"
+PlayerbotDatabaseInfo = "127.0.0.1;3306;mangos;mangos;classicplayerbots"
 LoginDatabaseConnections = 1
 WorldDatabaseConnections = 1
 CharacterDatabaseConnections = 1
+PlayerbotDatabaseConnections = 1
 MaxPingTime = 30
 WorldServerPort = 8085
 BindIP = "0.0.0.0"
@@ -1547,6 +1549,20 @@ BattleGround.PremadeGroupWaitForMatch = 0
 
 OutdoorPvp.SIEnabled = 1
 OutdoorPvp.EPEnabled = 1
+
+#<ike3-bot-patch>
+###################################################################################################################
+# CUSTOM SETTINGS CONFIG
+#
+#    Custom.CollectorsEdition
+#        Add WoW Collector's Edition reward on first login (Choice between 3 pets)
+#        Default: 0 (disable)
+#                 1 (enable)
+#
+###################################################################################################################
+
+Custom.CollectorsEdition = 0
+#</ike3-bot-patch>
 
 ###################################################################################################################
 # NETWORK CONFIG

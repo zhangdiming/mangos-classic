@@ -50,6 +50,12 @@
 #include "PlayerBot/Base/PlayerbotAI.h"
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "playerbot.h"
+#endif
+//</ike3-bot-patch>
+
 // select opcodes appropriate for processing in Map::Update context for current session state
 static bool MapSessionFilterHelper(WorldSession* session, OpcodeHandler const& opHandle)
 {
@@ -191,6 +197,17 @@ void WorldSession::SendPacket(WorldPacket const& packet, bool forcedSend /*= fal
             GetPlayer()->GetPlayerbotMgr()->HandleMasterOutgoingPacket(packet);
     }
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (GetPlayer()) {
+        if (GetPlayer()->GetPlayerbotAI())
+            GetPlayer()->GetPlayerbotAI()->HandleBotOutgoingPacket(packet);
+        else if (GetPlayer()->GetPlayerbotMgr())
+            GetPlayer()->GetPlayerbotMgr()->HandleMasterOutgoingPacket(packet);
+    }
+#endif
+//</ike3-bot-patch>
 
     if (!m_Socket || (m_sessionState != WORLD_SESSION_STATE_READY && !forcedSend))
     {
@@ -363,6 +380,14 @@ bool WorldSession::Update(uint32 diff)
                     if (_player && _player->GetPlayerbotMgr())
                         _player->GetPlayerbotMgr()->HandleMasterIncomingPacket(*packet);
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+                    if (_player && _player->GetPlayerbotMgr())
+                        _player->GetPlayerbotMgr()->HandleMasterIncomingPacket(*packet);
+#endif
+//</ike3-bot-patch>
+
                     break;
                 case STATUS_LOGGEDIN_OR_RECENTLY_LOGGEDOUT:
                     if (!_player && !m_playerRecentlyLogout)
@@ -443,6 +468,13 @@ bool WorldSession::Update(uint32 diff)
     }
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (GetPlayer() && GetPlayer()->GetPlayerbotMgr())
+        GetPlayer()->GetPlayerbotMgr()->UpdateSessions(0);
+#endif
+//</ike3-bot-patch>
+
     // check if we are safe to proceed with logout
     // logout procedure should happen only in World::UpdateSessions() method!!!
     switch (m_sessionState)
@@ -522,6 +554,21 @@ bool WorldSession::Update(uint32 diff)
     return true;
 }
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+void WorldSession::HandleBotPackets()
+{
+    while (!m_recvQueue.empty())
+    {
+        auto const packet = std::move(m_recvQueue.front());
+        m_recvQueue.pop_front();
+        OpcodeHandler const& opHandle = opcodeTable[packet->GetOpcode()];
+        (this->*opHandle.handler)(*packet);
+    }
+}
+#endif
+//</ike3-bot-patch>
+
 void WorldSession::UpdateMap(uint32 diff)
 {
     std::deque<std::unique_ptr<WorldPacket>> recvQueueMapCopy;
@@ -572,8 +619,21 @@ void WorldSession::LogoutPlayer()
             _player->GetPlayerbotMgr()->LogoutAllBots(true);
 #endif
 
-        sLog.outChar("Account: %d (IP: %s) Logout Character:[%s] (guid: %u)", GetAccountId(), GetRemoteAddress().c_str(), _player->GetName(), _player->GetGUIDLow());
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+        if (_player->GetPlayerbotMgr())
+            _player->GetPlayerbotMgr()->LogoutAllBots();
+        sRandomPlayerbotMgr.OnPlayerLogout(_player);
+#endif
 
+#ifdef ENABLE_PLAYERBOTS
+        sLog.outChar("Account: %d (IP: %s) Logout Character:[%s] (guid: %u)", GetAccountId(), m_Socket ? GetRemoteAddress().c_str() : "bot", _player->GetName(), _player->GetGUIDLow());
+#else
+//</ike3-bot-patch>
+        sLog.outChar("Account: %d (IP: %s) Logout Character:[%s] (guid: %u)", GetAccountId(), GetRemoteAddress().c_str(), _player->GetName(), _player->GetGUIDLow());
+//<ike3-bot-patch>
+#endif
+//</ike3-bot-patch>
         if (Loot* loot = sLootMgr.GetLoot(_player))
             loot->Release(_player);
 
@@ -688,6 +748,13 @@ void WorldSession::LogoutPlayer()
         uint32 guid = _player->GetGUIDLow();
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+        // Remember player GUID for update SQL below
+        uint32 guid = _player->GetGUIDLow();
+#endif
+//</ike3-bot-patch>
+
         ///- Remove the player from the world
         // the player may not be in the world when logging out
         // e.g if he got disconnected during a transfer to another map
@@ -719,11 +786,22 @@ void WorldSession::LogoutPlayer()
         // Different characters can be alive as bots
         SqlStatement stmt = CharacterDatabase.CreateStatement(updChars, "UPDATE characters SET online = 0 WHERE guid = ?");
         stmt.PExecute(guid);
+//<ike3-bot-patch>
+#else
+#ifdef ENABLE_PLAYERBOTS
+        // Set for only character instead of accountid
+        // Different characters can be alive as bots
+        stmt = CharacterDatabase.CreateStatement(updChars, "UPDATE characters SET online = 0 WHERE guid = ?");
+        stmt.PExecute(guid);
+//</ike3-bot-patch>
 #else
         ///- Since each account can only have one online character at any given time, ensure all characters for active account are marked as offline
         // No SQL injection as AccountId is uint32
         stmt = CharacterDatabase.CreateStatement(updChars, "UPDATE characters SET online = 0 WHERE account = ?");
         stmt.PExecute(GetAccountId());
+//<ike3-bot-patch>
+#endif
+//<ike3-bot-patch>
 #endif
 
         DEBUG_LOG("SESSION: Sent SMSG_LOGOUT_COMPLETE Message");

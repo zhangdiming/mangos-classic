@@ -1,0 +1,75 @@
+#pragma once
+
+#include "../Action.h"
+#include "../../RandomPlayerbotMgr.h"
+
+namespace ai
+{
+    class LeaveGroupAction : public Action {
+    public:
+        LeaveGroupAction(PlayerbotAI* ai, string name = "leave") : Action(ai, name) {}
+
+        virtual bool Execute(Event event)
+        {            
+            return Leave();
+        }
+
+        virtual bool Leave();
+    };
+
+    class PartyCommandAction : public LeaveGroupAction {
+    public:
+        PartyCommandAction(PlayerbotAI* ai) : LeaveGroupAction(ai, "party command") {}
+
+        virtual bool Execute(Event event)
+        {
+            WorldPacket& p = event.getPacket();
+            p.rpos(0);
+            uint32 operation;
+            string member;
+
+            p >> operation >> member;
+
+            if (operation != PARTY_OP_LEAVE)
+                return false;
+
+            Player* master = GetMaster();
+            if (master && member == master->GetName())
+                return Leave();
+
+            return false;
+        }
+    };
+
+    class UninviteAction : public LeaveGroupAction {
+    public:
+        UninviteAction(PlayerbotAI* ai) : LeaveGroupAction(ai, "party command") {}
+
+        virtual bool Execute(Event event)
+        {
+            WorldPacket& p = event.getPacket();
+            p.rpos(0);
+            std::string membername;
+            p >> membername;
+
+            // player not found
+            if (!normalizePlayerName(membername))
+            {
+                return false;
+            }
+
+            if (bot->GetName() == membername)
+                return Leave();
+
+            return false;
+        }
+    };
+
+
+    class LeaveFarAwayAction : public LeaveGroupAction {
+    public:
+        LeaveFarAwayAction(PlayerbotAI* ai) : LeaveGroupAction(ai, "leave far away") {}
+
+        virtual bool isUseful();
+    };
+}

@@ -44,6 +44,13 @@
 #include "PlayerBot/Base/PlayerbotMgr.h"
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "playerbot.h"
+#include "PlayerbotAIConfig.h"
+#endif
+//</ike3-bot-patch>
+
 // config option SkipCinematics supported values
 enum CinematicsSkipMode
 {
@@ -64,6 +71,101 @@ class LoginQueryHolder : public SqlQueryHolder
         uint32 GetAccountId() const { return m_accountId; }
         bool Initialize();
 };
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+class PlayerbotLoginQueryHolder : public LoginQueryHolder
+{
+private:
+    uint32 masterAccountId;
+    PlayerbotHolder* playerbotHolder;
+
+public:
+    PlayerbotLoginQueryHolder(PlayerbotHolder* playerbotHolder, uint32 masterAccount, uint32 accountId, uint64 guid)
+        : LoginQueryHolder(accountId, ObjectGuid(guid)), masterAccountId(masterAccount), playerbotHolder(playerbotHolder) { }
+
+public:
+    uint32 GetMasterAccountId() const { return masterAccountId; }
+    PlayerbotHolder* GetPlayerbotHolder() { return playerbotHolder; }
+};
+
+void PlayerbotHolder::AddPlayerBot(uint64 playerGuid, uint32 masterAccount)
+{
+    // has bot already been added?
+    Player* bot = sObjectMgr.GetPlayer(ObjectGuid(playerGuid));
+
+    if (bot && bot->IsInWorld())
+        return;
+
+    uint32 accountId = sObjectMgr.GetPlayerAccountIdByGUID(ObjectGuid(playerGuid));
+    if (accountId == 0)
+        return;
+
+    PlayerbotLoginQueryHolder *holder = new PlayerbotLoginQueryHolder(this, masterAccount, accountId, playerGuid);
+    if (!holder->Initialize())
+    {
+        delete holder;                                      // delete all unprocessed queries
+        return;
+    }
+
+    CharacterDatabase.DelayQueryHolder(this, &PlayerbotHolder::HandlePlayerBotLoginCallback, holder);
+}
+
+void PlayerbotHolder::HandlePlayerBotLoginCallback(QueryResult * dummy, SqlQueryHolder * holder)
+{
+    if (!holder)
+        return;
+
+    PlayerbotLoginQueryHolder* lqh = (PlayerbotLoginQueryHolder*)holder;
+    uint32 masterAccount = lqh->GetMasterAccountId();
+
+    WorldSession* masterSession = masterAccount ? sWorld.FindSession(masterAccount) : NULL;
+    uint32 botAccountId = lqh->GetAccountId();
+    WorldSession *botSession = new WorldSession(botAccountId, NULL, SEC_PLAYER,
+#ifndef MANGOSBOT_ZERO
+        1,
+#endif
+        0, LOCALE_enUS);
+
+    uint32 guid = lqh->GetGuid().GetRawValue();
+    botSession->HandlePlayerLogin(lqh); // will delete lqh
+
+    Player* bot = botSession->GetPlayer();
+    if (!bot)
+    {
+        sLog.outError("Error logging in bot %d, please try to reset all random bots", guid);
+        return;
+    }
+    PlayerbotMgr *mgr = bot->GetPlayerbotMgr();
+    bot->SetPlayerbotMgr(NULL);
+    delete mgr;
+    sRandomPlayerbotMgr.OnPlayerLogin(bot);
+
+    bool allowed = false;
+    if (botAccountId == masterAccount)
+        allowed = true;
+    else if (masterSession && sPlayerbotAIConfig.allowGuildBots && bot->GetGuildId() == masterSession->GetPlayer()->GetGuildId())
+        allowed = true;
+    else if (sPlayerbotAIConfig.IsInRandomAccountList(botAccountId))
+        allowed = true;
+
+    if (allowed)
+    {
+        OnBotLogin(bot);
+        return;
+    }
+
+    if (masterSession)
+    {
+        ChatHandler ch(masterSession);
+        ch.PSendSysMessage("You are not allowed to control bot %s", bot->GetName());
+    }
+    LogoutPlayerBot(bot->GetObjectGuid());
+    sLog.outError("Attempt to add not allowed bot %s, please try to reset all random bots", bot->GetName());
+}
+#endif
+//</ike3-bot-patch>
+
 
 bool LoginQueryHolder::Initialize()
 {
@@ -118,8 +220,31 @@ class CharacterHandler
         {
             if (!holder) return;
 
-            if (WorldSession* session = sWorld.FindSession(((LoginQueryHolder*)holder)->GetAccountId()))
-                session->HandlePlayerLogin((LoginQueryHolder*)holder);
+//<ike3-bot-patch>
+            //if (WorldSession* session = sWorld.FindSession(((LoginQueryHolder*)holder)->GetAccountId()))
+            //    session->HandlePlayerLogin((LoginQueryHolder*)holder);
+
+            WorldSession* session = sWorld.FindSession(((LoginQueryHolder*)holder)->GetAccountId());
+            if (!session)
+            {
+                delete holder;
+                return;
+            }
+#ifdef ENABLE_PLAYERBOTS
+            ObjectGuid guid = ((LoginQueryHolder*)holder)->GetGuid();
+#endif
+            session->HandlePlayerLogin((LoginQueryHolder*)holder);
+#ifdef ENABLE_PLAYERBOTS
+            Player* player = sObjectMgr.GetPlayer(guid, true);
+            if (player && !player->GetPlayerbotAI())
+            {
+                player->SetPlayerbotMgr(new PlayerbotMgr(player));
+                player->GetPlayerbotMgr()->OnPlayerLogin(player);
+                //sRandomPlayerbotMgr.OnPlayerLogin(player);
+            }
+            sRandomPlayerbotMgr.OnPlayerLogin(player);
+#endif
+//</ike3-bot-patch>
         }
 #ifdef BUILD_PLAYERBOT
         // This callback is different from the normal HandlePlayerLoginCallback in that it
@@ -738,6 +863,50 @@ void WorldSession::HandlePlayerLogin(LoginQueryHolder* holder)
         pCurrChar->RemoveAtLoginFlag(AT_LOGIN_RESET_TAXINODES, true);
         SendNotification("Your taxi nodes have been reset.");
     }
+
+    //<ike3-bot-patch>
+    // create collector's edition reward
+    if (sWorld.getConfig(CONFIG_BOOL_COLLECTORS_EDITION))
+        if (pCurrChar->HasAtLoginFlag(AT_LOGIN_FIRST))
+        {
+            uint32 itemid = 0;
+            switch (pCurrChar->getRace())
+            {
+            case RACE_HUMAN:
+                itemid = 14646;
+                break;
+            case RACE_ORC:
+            case RACE_TROLL:
+                itemid = 14649;
+                break;
+            case RACE_DWARF:
+            case RACE_GNOME:
+                itemid = 14647;
+                break;
+            case RACE_NIGHTELF:
+                itemid = 14648;
+                break;
+            case RACE_UNDEAD:
+                itemid = 14651;
+                break;
+            case RACE_TAUREN:
+                itemid = 14650;
+                break;
+            }
+
+            if (itemid)
+            {
+                ItemPrototype const* pProto = ObjectMgr::GetItemPrototype(itemid);
+                if (pProto)
+                {
+                    uint32 noSpaceForCount = 0;
+                    ItemPosCountVec dest;
+                    uint8 msg = pCurrChar->CanStoreNewItem(NULL_BAG, NULL_SLOT, dest, itemid, 1, &noSpaceForCount);
+                    Item* item = pCurrChar->StoreNewItem(dest, itemid, true);
+                }
+            }
+        }
+    //</ike3-bot-patch>
 
     if (pCurrChar->HasAtLoginFlag(AT_LOGIN_FIRST))
         pCurrChar->RemoveAtLoginFlag(AT_LOGIN_FIRST);

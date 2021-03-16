@@ -35,6 +35,15 @@
 #include "Pools/PoolManager.h"
 #include "GameEvents/GameEventMgr.h"
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "AhBot.h"
+#include "playerbot.h"
+#include "PlayerbotAIConfig.h"
+#include "GuildTaskMgr.h"
+#endif
+//<ike3-bot-patch>
+
 #include <cstdarg>
 
 // Supported shift-links (client generated and server side)
@@ -822,6 +831,17 @@ ChatCommand* ChatHandler::getCommandTable()
         { "auction",        SEC_ADMINISTRATOR,  false, nullptr,                                           "", auctionCommandTable  },
 #ifdef BUILD_AHBOT
         { "ahbot",          SEC_ADMINISTRATOR,  true,  nullptr,                                           "", ahbotCommandTable    },
+//<ike3-bot-patch>
+#endif
+#ifdef ENABLE_PLAYERBOTS
+#ifndef BUILD_AHBOT
+        { "ahbot",            SEC_GAMEMASTER,    true,  &ChatHandler::HandleAhBotCommand,                 "", NULL },
+#endif
+        { "rndbot",           SEC_GAMEMASTER,    true,  &ChatHandler::HandleRandomPlayerbotCommand,       "", NULL },
+        { "bot",              SEC_PLAYER,        false, &ChatHandler::HandlePlayerbotCommand,             "", NULL },
+        { "gtask",            SEC_GAMEMASTER,    true,  &ChatHandler::HandleGuildTaskCommand,             "", NULL },
+        { "pmon",             SEC_GAMEMASTER,    true,  &ChatHandler::HandlePerfMonCommand,               "" },
+//<\ike3-bot-patch>
 #endif
         { "cast",           SEC_ADMINISTRATOR,  false, nullptr,                                           "", castCommandTable     },
         { "character",      SEC_GAMEMASTER,     true,  nullptr,                                           "", characterCommandTable},
@@ -1934,7 +1954,6 @@ bool ChatHandler::CheckEscapeSequences(const char* message)
                             {
                                 return false;
                             }
-
                             for (uint8 i = 0; i < MAX_LOCALE; ++i)
                             {
                                 uint32 skillLineNameLength = strlen(skillLine->name[i]);

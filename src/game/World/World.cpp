@@ -75,6 +75,14 @@
  #include "Metric/Metric.h"
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "AhBot.h"
+#include "PlayerbotAIConfig.h"
+#include "RandomPlayerbotMgr.h"
+#endif
+//</ike3-bot-patch>
+
 #include <algorithm>
 #include <mutex>
 #include <cstdarg>
@@ -680,6 +688,11 @@ void World::LoadConfigSettings(bool reload)
     setConfig(CONFIG_UINT32_BATTLEGROUND_PREMADE_GROUP_WAIT_FOR_MATCH, "BattleGround.PremadeGroupWaitForMatch", 0);
     setConfig(CONFIG_BOOL_OUTDOORPVP_SI_ENABLED,                       "OutdoorPvp.SIEnabled", true);
     setConfig(CONFIG_BOOL_OUTDOORPVP_EP_ENABLED,                       "OutdoorPvp.EPEnabled", true);
+
+//<ike3-bot-patch>
+    // Collector's Edition rewards
+    setConfig(CONFIG_BOOL_COLLECTORS_EDITION, "Custom.CollectorsEdition", false);
+//</ike3-bot-patch>
 
     setConfig(CONFIG_BOOL_KICK_PLAYER_ON_BAD_PACKET, "Network.KickOnBadPacket", false);
 
@@ -1350,6 +1363,13 @@ void World::SetInitialWorldSettings()
 #ifdef BUILD_PLAYERBOT
     PlayerbotMgr::SetInitialWorldSettings();
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    sPlayerbotAIConfig.Initialize();
+#endif
+//</ike3-bot-patch>
+
     sLog.outString("---------------------------------------");
     sLog.outString("      CMANGOS: World initialized       ");
     sLog.outString("---------------------------------------");
@@ -1459,6 +1479,21 @@ void World::Update(uint32 diff)
         m_timers[WUPDATE_AHBOT].Reset();
     }
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#ifndef BUILD_AHBOT
+    /// <li> Handle AHBot operations
+    if (m_timers[WUPDATE_AHBOT].Passed())
+    {
+        auctionbot.Update();
+        m_timers[WUPDATE_AHBOT].Reset();
+    }
+#endif
+    sRandomPlayerbotMgr.UpdateAI(diff);
+    sRandomPlayerbotMgr.UpdateSessions(diff);
+#endif
+//<ike3-bot-patch>
 
     /// <li> Handle session updates
     auto preSessionTime = std::chrono::time_point_cast<std::chrono::milliseconds>(Clock::now());
@@ -1954,6 +1989,12 @@ void World::ShutdownServ(uint32 time, uint32 options, uint8 exitcode)
         m_ShutdownTimer = time;
         ShutdownMsg(true);
     }
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    sRandomPlayerbotMgr.LogoutAllBots();
+#endif
+//</ike3-bot-patch>
 }
 
 /// Display a shutdown message to the user(s)
@@ -2102,6 +2143,11 @@ void World::UpdateResultQueue()
     CharacterDatabase.ProcessResultQueue();
     WorldDatabase.ProcessResultQueue();
     LoginDatabase.ProcessResultQueue();
+
+    //<ike3-bot-patch>
+    PlayerbotDatabase.ProcessResultQueue();
+    //</ike3-bot-patch>
+
 }
 
 void World::UpdateRealmCharCount(uint32 accountId)

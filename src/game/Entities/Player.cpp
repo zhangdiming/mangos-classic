@@ -67,6 +67,13 @@
 #include "Config/Config.h"
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "playerbot.h"
+#include "PlayerbotAIConfig.h"
+#endif
+//</ike3-bot-patch>
+
 #include <cmath>
 
 #define ZONE_UPDATE_INTERVAL (1*IN_MILLISECONDS)
@@ -466,6 +473,12 @@ Player::Player(WorldSession* session): Unit(), m_taxiTracker(*this), m_mover(thi
 #ifdef BUILD_PLAYERBOT
     m_playerbotAI = 0;
     m_playerbotMgr = 0;
+//<ike3-bot-patch>
+#endif
+#ifdef ENABLE_PLAYERBOTS
+    m_playerbotAI = 0;
+    m_playerbotMgr = 0;
+//</ike3-bot-patch>
 #endif
     m_speakTime = 0;
     m_speakCount = 0;
@@ -625,6 +638,14 @@ Player::Player(WorldSession* session): Unit(), m_taxiTracker(*this), m_mover(thi
 
     //m_cinematicMgr = CinematicMgrUPtr(new CinematicMgr(this));
     m_cinematicMgr = nullptr;
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    m_playerbotAI = NULL;
+    m_playerbotMgr = NULL;
+#endif
+//</ike3-bot-patch>
+
 }
 
 Player::~Player()
@@ -674,7 +695,25 @@ Player::~Player()
         m_playerbotMgr = 0;
     }
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (m_playerbotAI) {
+        {
+            delete m_playerbotAI;
+        }
+        m_playerbotAI = 0;
+    }
+    if (m_playerbotMgr) {
+        {
+            delete m_playerbotMgr;
+        }
+        m_playerbotMgr = 0;
+    }
+#endif
+//</ike3-bot-patch>
 }
+
 
 void Player::CleanupsBeforeDelete()
 {
@@ -1545,6 +1584,19 @@ void Player::Update(const uint32 diff)
     else if (m_playerbotMgr)
         m_playerbotMgr->UpdateAI(diff);
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (m_playerbotAI)
+    {
+        m_playerbotAI->UpdateAI(diff);
+    }
+    if (m_playerbotMgr)
+    {
+        m_playerbotMgr->UpdateAI(diff);
+    }
+#endif
+//<ike3-bot-patch>
 }
 
 void Player::SetDeathState(DeathState s)
@@ -8178,6 +8230,27 @@ Item* Player::GetItemByGuid(ObjectGuid guid) const
     return nullptr;
 }
 
+//<ike3-bot-patch>
+Item* Player::GetItemByEntry(uint32 item) const
+{
+    for (int i = EQUIPMENT_SLOT_START; i < INVENTORY_SLOT_ITEM_END; ++i)
+        if (Item* pItem = GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            if (pItem->GetEntry() == item)
+            {
+                return pItem;
+            }
+
+    for (int i = INVENTORY_SLOT_BAG_START; i < INVENTORY_SLOT_BAG_END; ++i)
+        if (Bag* pBag = (Bag*)GetItemByPos(INVENTORY_SLOT_BAG_0, i))
+            if (Item* itemPtr = pBag->GetItemByEntry(item))
+            {
+                return itemPtr;
+            }
+
+    return NULL;
+}
+//</ike3-bot-patch>
+
 Item* Player::GetItemByPos(uint16 pos) const
 {
     uint8 bag = pos >> 8;
@@ -12369,7 +12442,15 @@ void Player::AddQuest(Quest const* pQuest, Object* questGiver)
         questStatusData.uState = QUEST_CHANGED;
 
     // quest accept scripts
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (questGiver && this != questGiver)
+#else
+//</ike3-bot-patch>
     if (questGiver)
+//<ike3-bot-patch>
+#endif
+//</ike3-bot-patch>
     {
         switch (questGiver->GetTypeId())
         {
@@ -12545,6 +12626,12 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
 
     bool handled = false;
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (this != questGiver) {
+#endif
+//</ike3-bot-patch>
+
     switch (questGiver->GetTypeId())
     {
         case TYPEID_UNIT:
@@ -12555,7 +12642,18 @@ void Player::RewardQuest(Quest const* pQuest, uint32 reward, Object* questGiver,
             break;
     }
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    }
+#endif
+
+#ifdef ENABLE_PLAYERBOTS
+    if (this != questGiver && !handled && pQuest->GetQuestCompleteScript() != 0)
+#else
     if (!handled && pQuest->GetQuestCompleteScript() != 0)
+#endif
+    //if (!handled && pQuest->GetQuestCompleteScript() != 0)
+//</ike3-bot-patch>
         GetMap()->ScriptsStart(sQuestEndScripts, pQuest->GetQuestCompleteScript(), questGiver, this, Map::SCRIPT_EXEC_PARAM_UNIQUE_BY_SOURCE);
 
     // Find spell cast on spell reward if any, then find the appropriate caster and cast it
@@ -15776,12 +15874,23 @@ void Player::_SaveInventory()
         m_items[i]->FSetState(ITEM_NEW);
     }
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    if (!GetPlayerbotAI())  // hackfix for crash during save
+    {
+#endif
+//</ike3-bot-patch>
+
     // update enchantment durations
     for (EnchantDurationList::const_iterator itr = m_enchantDuration.begin(); itr != m_enchantDuration.end(); ++itr)
     {
         itr->item->SetEnchantmentDuration(itr->slot, itr->leftduration);
     }
-
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    }
+#endif
+//<ike3-bot-patch>
     // if no changes
     if (m_itemUpdateQueue.empty()) return;
 

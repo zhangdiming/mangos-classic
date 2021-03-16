@@ -50,4 +50,8 @@ extern DatabaseType WorldDatabase;
 extern DatabaseType CharacterDatabase;
 extern DatabaseType LoginDatabase;
 
+//<ike3-bot-patch>
+extern DatabaseType PlayerbotDatabase;
+//</ike3-bot-patch>
+
 #endif

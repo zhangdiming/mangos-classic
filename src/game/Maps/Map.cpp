@@ -850,7 +850,15 @@ void Map::Remove(Player* player, bool remove)
     SendRemoveTransports(player);
     UpdateObjectVisibility(player, cell, p);
 
+//<ike3-bot-patch>
+//    player->ResetMap();
+#ifdef ENABLE_PLAYERBOTS
+    if (!player->GetPlayerbotAI())
+        player->ResetMap();
+#else
     player->ResetMap();
+#endif
+//<ike3-bot-patch>
     if (remove)
         DeleteFromWorld(player);
 }

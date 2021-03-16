@@ -59,6 +59,10 @@ DatabaseType WorldDatabase;                                 ///< Accessor to the
 DatabaseType CharacterDatabase;                             ///< Accessor to the character database
 DatabaseType LoginDatabase;                                 ///< Accessor to the realm/login database
 
+//<ike3-bot-patch>
+DatabaseType PlayerbotDatabase;
+//</ike3-bot-patch>
+
 uint32 realmID;                                             ///< Id of the realm
 
 /// Launch the mangos server

@@ -29,3 +29,10 @@ endif()
 if(BUILD_LOGIN_SERVER)
   add_subdirectory(realmd)
 endif()
+
+
+#<ike3-bot-patch>
+if(BUILD_IKE3_BOTS)
+add_subdirectory(modules)
+endif()
+#</ike3-bot-patch>

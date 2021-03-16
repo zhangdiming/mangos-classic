@@ -36,6 +36,13 @@
 #include "Grids/CellImpl.h"
 #include "GMTickets/GMTicketMgr.h"
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "playerbot.h"
+#include "RandomPlayerbotMgr.h"
+#endif
+//</ike3-bot-patch>
+
 bool WorldSession::CheckChatMessage(std::string& msg, bool addon/* = false*/)
 {
 #ifdef BUILD_PLAYERBOT
@@ -236,6 +243,18 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
                 }
             }
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+            if (player->GetPlayerbotAI())
+            {
+                player->GetPlayerbotAI()->HandleCommand(type, msg, *GetPlayer());
+                GetPlayer()->m_speakTime = 0;
+                GetPlayer()->m_speakCount = 0;
+            }
+            else
+#endif
+//</ike3-bot-patch>
+
             GetPlayer()->Whisper(msg, lang, player->GetObjectGuid());
         } break;
 
@@ -271,6 +290,21 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             ChatHandler::BuildChatPacket(data, ChatMsg(type), msg.c_str(), Language(lang), _player->GetChatTag(), _player->GetObjectGuid(), _player->GetName());
             group->BroadcastPacket(data, false, group->GetMemberGroup(GetPlayer()->GetObjectGuid()));
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+            for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
+            {
+                Player* player = itr->getSource();
+                if (player && player->GetPlayerbotAI())
+                {
+                    player->GetPlayerbotAI()->HandleCommand(type, msg, *GetPlayer());
+                    GetPlayer()->m_speakTime = 0;
+                    GetPlayer()->m_speakCount = 0;
+                }
+            }
+#endif
+//</ike3-bot-patch>
+
             break;
         }
         case CHAT_MSG_GUILD:
@@ -294,6 +328,21 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             if (GetPlayer()->GetGuildId())
                 if (Guild* guild = sGuildMgr.GetGuildById(GetPlayer()->GetGuildId()))
                     guild->BroadcastToGuild(this, msg, lang == LANG_ADDON ? LANG_ADDON : LANG_UNIVERSAL);
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+            PlayerbotMgr *mgr = GetPlayer()->GetPlayerbotMgr();
+            if (mgr)
+            {
+                for (PlayerBotMap::const_iterator it = mgr->GetPlayerBotsBegin(); it != mgr->GetPlayerBotsEnd(); ++it)
+                {
+                    Player* const bot = it->second;
+                    if (bot->GetGuildId() == GetPlayer()->GetGuildId())
+                        bot->GetPlayerbotAI()->HandleCommand(type, msg, *GetPlayer());
+                }
+            }
+#endif
+//</ike3-bot-patch>
 
             break;
         }
@@ -355,6 +404,22 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, CHAT_MSG_RAID, msg.c_str(), Language(lang), _player->GetChatTag(), _player->GetObjectGuid(), _player->GetName());
             group->BroadcastPacket(data, false);
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+            for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
+            {
+                Player* player = itr->getSource();
+                if (player && player->GetPlayerbotAI())
+                {
+                    player->GetPlayerbotAI()->HandleCommand(type, msg, *GetPlayer());
+                    GetPlayer()->m_speakTime = 0;
+                    GetPlayer()->m_speakCount = 0;
+                }
+            }
+#endif
+//</ike3-bot-patch>
+
         } break;
         case CHAT_MSG_RAID_LEADER:
         {
@@ -386,6 +451,22 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, CHAT_MSG_RAID_LEADER, msg.c_str(), Language(lang), _player->GetChatTag(), _player->GetObjectGuid(), _player->GetName());
             group->BroadcastPacket(data, false);
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+            for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
+            {
+                Player* player = itr->getSource();
+                if (player && player->GetPlayerbotAI())
+                {
+                    player->GetPlayerbotAI()->HandleCommand(type, msg, *GetPlayer());
+                    GetPlayer()->m_speakTime = 0;
+                    GetPlayer()->m_speakCount = 0;
+                }
+            }
+#endif
+//</ike3-bot-patch>
+
         } break;
 
         case CHAT_MSG_RAID_WARNING:
@@ -416,6 +497,22 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
             WorldPacket data;
             ChatHandler::BuildChatPacket(data, CHAT_MSG_RAID_WARNING, msg.c_str(), Language(lang), _player->GetChatTag(), _player->GetObjectGuid(), _player->GetName());
             group->BroadcastPacket(data, true);
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+            for (GroupReference* itr = group->GetFirstMember(); itr != NULL; itr = itr->next())
+            {
+                Player* player = itr->getSource();
+                if (player && player->GetPlayerbotAI())
+                {
+                    player->GetPlayerbotAI()->HandleCommand(type, msg, *GetPlayer());
+                    GetPlayer()->m_speakTime = 0;
+                    GetPlayer()->m_speakCount = 0;
+                }
+            }
+#endif
+//</ike3-bot-patch>
+
         } break;
 
         case CHAT_MSG_BATTLEGROUND:
@@ -482,7 +579,18 @@ void WorldSession::HandleMessagechatOpcode(WorldPacket& recv_data)
 
             if (ChannelMgr* cMgr = channelMgr(_player->GetTeam()))
                 if (Channel* chn = cMgr->GetChannel(channel, _player))
+                {
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+                    if (_player->GetPlayerbotMgr() && chn->GetFlags() & 0x18)
+                    {
+                        _player->GetPlayerbotMgr()->HandleCommand(type, msg);
+                    }
+                    sRandomPlayerbotMgr.HandleCommand(type, msg, *_player);
+#endif
+//</ike3-bot-patch>
                     chn->Say(_player, msg.c_str(), lang);
+                }
         } break;
 
         case CHAT_MSG_AFK:

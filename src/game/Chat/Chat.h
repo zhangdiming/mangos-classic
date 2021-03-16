@@ -101,6 +101,12 @@ class ChatHandler
 
         bool HasSentErrorMessage() const { return sentErrorMessage;}
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+        WorldSession* GetSession() { return m_session; }
+#endif
+//</ike3-bot-patch>
+
         /**
         * \brief Prepare SMSG_GM_MESSAGECHAT/SMSG_MESSAGECHAT
         *
@@ -713,6 +719,16 @@ class ChatHandler
 #ifdef BUILD_PLAYERBOT
         bool HandlePlayerbotCommand(char* args);
 #endif
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+        bool HandlePlayerbotCommand(char* args);
+        bool HandleRandomPlayerbotCommand(char* args);
+        bool HandleAhBotCommand(char* args);
+        bool HandleGuildTaskCommand(char* args);
+        bool HandlePerfMonCommand(char* args);
+#endif
+//</ike3-bot-patch>
 
         bool HandleMmapPathCommand(char* args);
         bool HandleMmapLocCommand(char* args);

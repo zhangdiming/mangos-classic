@@ -185,8 +185,17 @@ class WorldSession
 #ifdef BUILD_PLAYERBOT
         // Players connected without socket are bot
         const std::string GetRemoteAddress() const { return m_Socket ? m_Socket->GetRemoteAddress() : "disconnected/bot"; }
+//<ike3-bot-patch>
+#else
+#ifdef ENABLE_PLAYERBOTS
+        // Players connected without socket are bot
+        const std::string GetRemoteAddress() const { return m_Socket ? m_Socket->GetRemoteAddress() : "disconnected/bot"; }
+//</ike3-bot-patch>
 #else
         const std::string GetRemoteAddress() const { return m_Socket ? m_Socket->GetRemoteAddress() : "disconnected"; }
+//<ike3-bot-patch>
+#endif
+//</ike3-bot-patch>
 #endif
         void SetPlayer(Player* plr) { _player = plr; }
 
@@ -703,6 +712,13 @@ class WorldSession
         void HandleCancelTempEnchantmentOpcode(WorldPacket& recv_data);
 
         void HandleSetTaxiBenchmarkOpcode(WorldPacket& recv_data);
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+        // Playerbots
+        void HandleBotPackets();
+#endif
+//</ike3-bot-patch>
 
 #define MOVEMENT_PACKET_TIME_DELAY 0
 

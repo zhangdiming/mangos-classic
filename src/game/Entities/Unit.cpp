@@ -54,6 +54,13 @@
  #include "Metric/Metric.h"
 #endif
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+#include "playerbot.h"
+#include "GuildTaskMgr.h"
+#endif
+//<ike3-bot-patch>
+
 #include <math.h>
 #include <limits>
 #include <array>
@@ -1252,6 +1259,14 @@ void Unit::JustKilledCreature(Unit* killer, Creature* victim, Player* responsibl
     if (responsiblePlayer)                                  // killedby Player, inform BG
         if (BattleGround* bg = responsiblePlayer->GetBattleGround())
             bg->HandleKillUnit(victim, responsiblePlayer);
+
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+    // Guild Task check
+    if (responsiblePlayer)
+        sGuildTaskMgr.CheckKillTask(responsiblePlayer, victim);
+#endif
+//</ike3-bot-patch>
 
     // Notify the outdoor pvp script
     if (OutdoorPvP* outdoorPvP = sOutdoorPvPMgr.GetScript(responsiblePlayer ? responsiblePlayer->GetCachedZoneId() : victim->GetZoneId()))

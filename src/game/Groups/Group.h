@@ -264,6 +264,12 @@ class Group
         InstanceGroupBind* GetBoundInstance(uint32 mapid);
         BoundInstancesMap& GetBoundInstances() { return m_boundInstances; }
 
+//<ike3-bot-patch>
+#ifdef ENABLE_PLAYERBOTS
+        ObjectGuid GetTargetIcon(int index) { return m_targetIcons[index]; }
+#endif
+//</ike3-bot-patch>
+
     protected:
         bool _addMember(ObjectGuid guid, const char* name, bool isAssistant = false);
         bool _addMember(ObjectGuid guid, const char* name, bool isAssistant, uint8 group);
